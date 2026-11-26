@@ -7,5 +7,5 @@ DB=rentalspy_test_$$
 createdb "$DB"
 trap 'dropdb "$DB"' EXIT
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f mock_supabase.sql
-psql -q -v ON_ERROR_STOP=1 -d "$DB" -f ../migrations/0001_init.sql
+for f in ../migrations/*.sql; do psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"; done
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f test_rules.sql

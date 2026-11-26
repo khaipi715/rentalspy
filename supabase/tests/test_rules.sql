@@ -150,3 +150,15 @@ select pg_temp.ok(not exists (select 1 from public.entries where address_label l
 select pg_temp.ok(not exists (select 1 from public.comments), 'comments deleted with account');
 
 \echo ALL TESTS PASSED
+
+-- 11. admin by email
+insert into public.admin_emails (email) values ('Boss@Test');
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000e0', 'boss@test');
+select pg_temp.ok((select is_admin from public.profiles where id = '00000000-0000-0000-0000-0000000000e0'), 'listed email becomes admin on sign-up');
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000f0', null);
+update auth.users set email = 'boss@test2' where id = '00000000-0000-0000-0000-0000000000f0';
+select pg_temp.ok(not (select is_admin from public.profiles where id = '00000000-0000-0000-0000-0000000000f0'), 'unlisted email is not admin');
+select pg_temp.as_user(null);
+select pg_temp.expect_error('select * from public.admin_emails', 'permission denied');
+reset role;
+\echo ADMIN EMAIL TESTS PASSED

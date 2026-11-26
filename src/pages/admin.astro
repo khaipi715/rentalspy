@@ -50,7 +50,7 @@ import Base from '../layouts/Base.astro';
   });
   $('lf').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const { error } = await sb!.auth.signInWithOtp({ email: ($('em') as HTMLInputElement).value.trim(), options: { emailRedirectTo: location.origin + '/admin/', shouldCreateUser: false } });
+    const { error } = await sb!.auth.signInWithOtp({ email: ($('em') as HTMLInputElement).value.trim(), options: { emailRedirectTo: location.origin + '/admin/' } });
     $('lm').textContent = error ? niceError(error) : 'Check your inbox for the sign-in link.';
   });
   load();

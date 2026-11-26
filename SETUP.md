@@ -30,12 +30,11 @@ You'll create three free accounts: **GitHub** (stores the code), **Supabase** (t
 
 ### Make yourself the admin
 
-1. **Authentication** → **Users** → **Add user** → **Create new user**: your email (the same one as your Supabase account), any password, tick **Auto confirm**.
-2. **SQL Editor** → New query → paste this, with your email, and click **Run**:
-   ```sql
-   update public.profiles set is_admin = true
-   where id = (select id from auth.users where email = 'YOUR-EMAIL-HERE');
-   ```
+**SQL Editor** → New query → paste this with your email and click **Run**:
+```sql
+insert into public.admin_emails (email) values ('YOUR-EMAIL-HERE');
+```
+Then open `/admin/` on your site and sign in with that email. Use the same email as your Supabase account: until email sending is set up (step 7), Supabase only sends sign-in links to its own account holders.
 
 ## 3. Vercel: put the website online
 
