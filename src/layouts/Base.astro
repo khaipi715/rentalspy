@@ -1,0 +1,60 @@
+---
+import '../styles/global.css';
+interface Props { title: string; description?: string; noindex?: boolean }
+const { title, description = 'See what renters really pay in Mawson Lakes and nearby suburbs, and what living there is like. Free, run for renters.', noindex = false } = Astro.props;
+const site = import.meta.env.PUBLIC_SITE_URL || '';
+const canonical = site ? new URL(Astro.url.pathname, site).toString() : undefined;
+const year = new Date().getFullYear();
+---
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  {canonical && <link rel="canonical" href={canonical} />}
+  {noindex && <meta name="robots" content="noindex" />}
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#d94f2b" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <header class="top">
+    <a class="logo" href="/" aria-label="RentalSpy home"><span class="dot"></span>RentalSpy</a>
+    <nav aria-label="Main">
+      <a href="/#suburbs">Suburbs</a>
+      <a href="/about/">About</a>
+      <a href="/me/" id="nav-me" class="hide">My places</a>
+      <a class="btn small" href="/add/">Add your rent</a>
+    </nav>
+  </header>
+  <main><slot /></main>
+  <footer class="foot band">
+    <div class="wrap">
+      <p><b>RentalSpy</b> is free and run for renters. Ratings are about places, never people.</p>
+      <p class="links"><a href="/about/">About</a> · <a href="/rules/">Review rules</a> · <a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="/report-a-problem/">Report a problem</a></p>
+      <p class="note">Rent data: SA Government Private Rental Report (bond lodgements). Crime data: SA Police. Incorporates or developed using G-NAF © Geoscape Australia licensed by the Commonwealth of Australia under the Open G-NAF End User Licence Agreement. Map data © OpenStreetMap contributors; map tiles by OpenFreeMap. © {year} RentalSpy.</p>
+    </div>
+  </footer>
+  <style>
+    .top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px max(5vw, 16px); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--rule); }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 21px; color: var(--ink); text-decoration: none; }
+    .logo .dot { width: 18px; height: 18px; border-radius: 50%; border: 5px solid var(--line); background: var(--card); }
+    .top nav { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: flex-end; }
+    .top nav a:not(.btn) { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+    .foot { border-top: 1px solid var(--rule); margin-top: 24px; }
+    @media (max-width: 560px) { .top nav a:not(.btn) { display: none; } .top nav a#nav-me:not(.hide) { display: inline; } }
+  </style>
+  <script>
+    import { sb } from '../lib/supabase';
+    if (sb) sb.auth.getSession().then(({ data }) => { if (data.session) document.getElementById('nav-me')?.classList.remove('hide'); });
+  </script>
+</body>
+</html>

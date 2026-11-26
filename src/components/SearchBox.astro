@@ -1,0 +1,73 @@
+---
+// Address search over every street in the covered suburbs. Type "12 Adeline" or a street or suburb name.
+interface Props { big?: boolean; placeholder?: string; mode?: 'go' | 'add' }
+const { big = false, placeholder = 'Type your street, e.g. 12 Adeline Street', mode = 'go' } = Astro.props;
+---
+<div class:list={['search', { large: big }]} data-mode={mode}>
+  <label class="sr" for={`q-${mode}`}>Search an address</label>
+  <input id={`q-${mode}`} type="search" autocomplete="off" placeholder={placeholder} aria-describedby={`qh-${mode}`} />
+  <ul class="results" role="listbox" hidden></ul>
+  <p class="note" id={`qh-${mode}`}>Covers 40,000+ addresses in Mawson Lakes and nearby suburbs.</p>
+</div>
+<style>
+  .search { position: relative; max-width: 640px; }
+  .search.large input { min-height: 60px; font-size: 19px; padding: 14px 18px; border-radius: 14px; border-width: 2px; border-color: var(--ink); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .results { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% - 26px); list-style: none; margin: 0; padding: 6px; background: var(--card); border: 1px solid var(--rule); border-radius: 12px; box-shadow: 0 12px 30px rgb(0 0 0 / .15); max-height: 360px; overflow: auto; }
+  .results a { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; }
+  .results a:hover, .results a.on { background: var(--soft); }
+  .results small { color: var(--mute); white-space: nowrap; }
+  .search .note { margin-top: 6px; }
+</style>
+<script>
+  import { esc } from '../lib/format';
+  type Row = [string, string, string, string, number];
+  let data: Row[] | null = null;
+  const load = async () => (data ??= await (await fetch('/data/search.json')).json());
+  const norm = (s: string) => s.toLowerCase().replace(/\b(st|rd|ave|av|cres|ct|dr|pl|tce|cct|pde|bvd|blvd|hwy|gr|cl|wk)\b\.?/g, (m) => ({ st: 'street', rd: 'road', ave: 'avenue', av: 'avenue', cres: 'crescent', ct: 'court', dr: 'drive', pl: 'place', tce: 'terrace', cct: 'circuit', pde: 'parade', bvd: 'boulevard', blvd: 'boulevard', hwy: 'highway', gr: 'grove', cl: 'close', wk: 'walk' } as Record<string, string>)[m.replace('.', '')] || m).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const SUBURBS = ['Mawson Lakes', 'Pooraka', 'Parafield Gardens', 'Salisbury', 'Salisbury South', 'Salisbury Downs', 'Para Hills', 'Para Hills West', 'Walkley Heights', 'Ingle Farm', 'Dry Creek', 'Green Fields'];
+  const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  for (const root of document.querySelectorAll<HTMLElement>('.search')) {
+    const input = root.querySelector('input')!, list = root.querySelector<HTMLUListElement>('.results')!;
+    const mode = root.dataset.mode;
+    let sel = -1;
+    input.addEventListener('focus', load, { once: true });
+    input.addEventListener('input', async () => {
+      const rows = await load();
+      const raw = input.value.trim();
+      const m = raw.match(/^(?:(?:unit|u|apt|flat)\s*)?(\d+[a-z]?)(?:\s*\/\s*(\d+[a-z]?))?\s+(.*)$/i);
+      let num = '', unit = '', text = raw;
+      if (m) { if (m[2]) { unit = m[1]; num = m[2]; } else num = m[1]; text = m[3]; }
+      const qn = norm(text);
+      if (qn.length < 2) { list.hidden = true; return; }
+      const words = qn.split(' ');
+      const subHits = SUBURBS.filter((s) => norm(s).startsWith(qn)).map((s) => ({ href: `/suburb/${slug(s)}/`, label: s, sub: 'Suburb' }));
+      const scored: [number, Row][] = [];
+      for (const r of rows) {
+        const hay = norm(r[0] + ' ' + r[1]);
+        if (!words.every((w) => hay.includes(w))) continue;
+        const sc = (norm(r[0]).startsWith(qn) ? 0 : 1) + (r[1] === 'Mawson Lakes' ? 0 : 0.5);
+        scored.push([sc, r]);
+      }
+      scored.sort((a, b) => a[0] - b[0] || a[1][0].localeCompare(b[1][0]));
+      const hits = scored.slice(0, 8).map(([, r]) => {
+        const base = `/street/${r[2]}/${r[3]}/`;
+        const qs = num ? `?n=${encodeURIComponent(num)}${unit ? '&u=' + encodeURIComponent(unit) : ''}` : '';
+        const href = mode === 'add' ? `/add/?st=${r[2]}/${r[3]}${num ? '&n=' + encodeURIComponent(num) + (unit ? '&u=' + encodeURIComponent(unit) : '') : ''}` : base + qs;
+        return { href, label: (num ? (unit ? unit + '/' : '') + num + ' ' : '') + r[0], sub: r[1] };
+      });
+      const all = [...(mode === 'add' ? [] : subHits), ...hits];
+      sel = -1;
+      list.innerHTML = all.length ? all.map((h) => `<li><a role="option" href="${esc(h.href)}">${esc(h.label)} <small>${esc(h.sub)}</small></a></li>`).join('') : '<li class="note" style="padding:10px">No match. We cover Mawson Lakes and 11 nearby suburbs for now.</li>';
+      list.hidden = false;
+    });
+    input.addEventListener('keydown', (e) => {
+      const links = [...list.querySelectorAll('a')];
+      if (!links.length) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length; links.forEach((l, i) => l.classList.toggle('on', i === sel)); }
+      if (e.key === 'Enter') { e.preventDefault(); (links[Math.max(sel, 0)] as HTMLAnchorElement).click(); }
+      if (e.key === 'Escape') list.hidden = true;
+    });
+    document.addEventListener('click', (e) => { if (!root.contains(e.target as Node)) list.hidden = true; });
+  }
+</script>

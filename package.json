@@ -1,0 +1,27 @@
+{
+  "name": "rentalspy",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/copy-maplibre-worker.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/copy-maplibre-worker.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "data": "python3 data-pipeline/build_data.py",
+    "test:db": "supabase/tests/run.sh",
+    "test:e2e": "node tests/e2e/flow.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
+    "astro": "^7.4.13",
+    "maplibre-gl": "^6.19.0"
+  },
+  "devDependencies": {
+    "pg": "^8.23.1"
+  },
+  "engines": {
+    "node": ">=22.23.4"
+  }
+}

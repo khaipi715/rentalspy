@@ -1,0 +1,9 @@
+---
+interface Props { title: string }
+const { title } = Astro.props;
+---
+<section class="band"><div class="narrow prose"><h1>{title}</h1><slot /></div></section>
+<style>
+  .prose :global(h2) { margin-top: 32px; font-size: 24px; }
+  .prose :global(li) { margin: 6px 0; }
+</style>

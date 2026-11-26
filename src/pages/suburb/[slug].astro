@@ -1,0 +1,113 @@
+---
+import Base from '../../layouts/Base.astro';
+import RentTool from '../../components/RentTool.astro';
+import SearchBox from '../../components/SearchBox.astro';
+import suburbs from '../../data/suburbs.json';
+import streets from '../../data/streets.json';
+import meta from '../../data/meta.json';
+import { fresh, money, qName, CRIME_NAMES } from '../../lib/format';
+
+export function getStaticPaths() {
+  return suburbs.map((s: any) => ({ params: { slug: s.slug }, props: { s } }));
+}
+const { s } = Astro.props as { s: any };
+const lt = fresh(s.rent['all|Total']);
+const myStreets = (streets as any[]).filter((x) => x.sslug === s.slug).sort((a, b) => a.name.localeCompare(b.name));
+const neighbours = suburbs.filter((x: any) => x.slug !== s.slug).map((x: any) => ({ ...x, lt: fresh(x.rent['all|Total']) }));
+const c = s.crime;
+const mx = Math.max(1, ...c.top.map((t: any) => t[1]));
+const isFocus = s.name === meta.focus;
+const dist = meta.distances as Record<string, Record<string, number>>;
+const lm = meta.landmarks as Record<string, any>;
+const letters = [...new Set(myStreets.map((x) => x.name[0].toUpperCase()))];
+---
+<Base title={`Renting in ${s.name}: rent, safety and renter reviews | RentalSpy`} description={`What new leases cost in ${s.name}${lt ? ` (median ${money(lt[2])} a week, ${qName(lt[0])})` : ''}, by unit or house and bedrooms. Home break-ins, renter ratings and every street.`}>
+  <section class="band">
+    <div class="wrap">
+      <div class="crumbs"><a href="/">RentalSpy</a> › {s.name}</div>
+      <h1>{lt ? `Renting in ${s.name}: new leases cost about ${money(lt[2])} a week` : `Renting in ${s.name}`}</h1>
+      <p class="lede">{lt ? `Median rent for new leases in ${qName(lt[0])}, compared with ${money(lt[3])} across Adelaide. Pick a type of place to see what to expect.` : 'Too few leases are signed here for the government to publish a median. Renter reports below.'}</p>
+      <RentTool suburb={s} />
+      <p class="note" style="margin-top:10px">Median weekly rent of new leases (bonds lodged), SA Government Private Rental Report.</p>
+    </div>
+  </section>
+
+  <section class="band alt">
+    <div class="wrap grid2">
+      <div>
+        <h2>What renters say about {s.name}</h2>
+        <div id="reports" data-suburb={s.slug}><p class="note">Loading…</p></div>
+      </div>
+      <div>
+        <h2>Find a street</h2>
+        <SearchBox placeholder={`Street in ${s.name}`} />
+        <p class="note">{myStreets.length} streets, {s.addresses.toLocaleString('en-AU')} addresses.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap grid2">
+      <div>
+        <h2>Safety</h2>
+        <p><b>Home break-ins: {c.breakins} in {c.year}</b> (was {c.breakinsPrev} in {c.prevYear}). Assaults: {c.assaults}. All reported offences: {c.total.toLocaleString('en-AU')}.</p>
+        <p class="note">SA Police reported crime, by suburb where it happened. These are counts, not rates per person: bigger suburbs and suburbs with shopping centres naturally have more.</p>
+      </div>
+      <div>
+        {c.top.length > 0 && <h3>Most common offences, {c.year}</h3>}
+        <div class="bars">
+          {c.top.map((t: any) => (
+            <div class:list={['bar', { hl: t[0] === 'SCT - Residence' }]}><span>{CRIME_NAMES[t[0]] || t[0]}</span><span class="t"><i style={`width:${(t[1] / mx * 100).toFixed(1)}%`}></i></span><span>{t[1]}</span></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {isFocus && (
+    <section class="band alt">
+      <div class="wrap grid2">
+        <div>
+          <h2>Getting around</h2>
+          <p class="note">Straight-line distances. Walking routes are longer.</p>
+          <h3>From the uni campus</h3>
+          <ul class="facts" style="list-style:none;padding:0">{Object.entries(dist.uni || {}).sort((a, b) => a[1] - b[1]).map(([k, v]) => <li><span>{lm[k]?.[0]}</span><b>{v} km</b></li>)}</ul>
+        </div>
+        <div>
+          <h3 style="margin-top:8px">From Mawson Interchange</h3>
+          <ul class="facts" style="list-style:none;padding:0">{Object.entries(dist.station || {}).sort((a, b) => a[1] - b[1]).map(([k, v]) => <li><span>{lm[k]?.[0]}</span><b>{v} km</b></li>)}</ul>
+          <p class="note" style="margin-top:10px">Parafield Airport is a busy flight-training airport about 2 km away. Some streets may get small-plane noise; check at the inspection.</p>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="band">
+    <div class="wrap">
+      <h2>All streets in {s.name}</h2>
+      <p class="scroll" style="display:flex;gap:10px;max-width:none">{letters.map((l) => <a href={`#l-${l}`}>{l}</a>)}</p>
+      <ul class="alpha">
+        {myStreets.map((x, i) => (
+          <li id={i === 0 || myStreets[i - 1].name[0].toUpperCase() !== x.name[0].toUpperCase() ? `l-${x.name[0].toUpperCase()}` : undefined}>
+            <a href={`/street/${x.sslug}/${x.slug}/`}>{x.name}</a> <span class="note">{x.count}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="band alt">
+    <div class="wrap">
+      <h2>Nearby suburbs</h2>
+      <div class="cards">
+        {neighbours.map((x: any) => <a class="card" href={`/suburb/${x.slug}/`}><h3>{x.name}</h3><b style="color:var(--line);font-size:22px">{x.lt ? money(x.lt[2]) : '—'}</b><span class="note"> /week</span></a>)}
+      </div>
+    </div>
+  </section>
+</Base>
+<style>.facts li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--rule); padding-bottom: 6px; }</style>
+<script>
+  import { fillReports } from '../../lib/reports';
+  const box = document.getElementById('reports')!;
+  fillReports(box, { suburb: box.dataset.suburb!, addHref: '/add/', showAddress: true });
+</script>

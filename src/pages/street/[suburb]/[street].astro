@@ -1,0 +1,73 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Base from '../../../layouts/Base.astro';
+import RentTool from '../../../components/RentTool.astro';
+import streets from '../../../data/streets.json';
+import suburbs from '../../../data/suburbs.json';
+import { fresh, money, qName } from '../../../lib/format';
+
+export function getStaticPaths() {
+  return (streets as any[]).map((st) => ({ params: { suburb: st.sslug, street: st.slug }, props: { st } }));
+}
+const { st } = Astro.props as { st: any };
+const full = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public', 'data', 'streets', st.sslug, st.slug + '.json'), 'utf8'));
+const s: any = suburbs.find((x: any) => x.slug === st.sslug);
+const lt = fresh(s.rent['all|Total']);
+const label = (a: any) => (a.u ? `${a.u}/` : '') + a.n;
+// group units under their street number so big apartment blocks stay readable
+const groups: Record<string, any[]> = {};
+for (const a of full.addresses) (groups[a.n] ||= []).push(a);
+const nearby = (streets as any[]).filter((x) => x.sslug === st.sslug && x.slug !== st.slug)
+  .map((x) => ({ ...x, d: Math.hypot(x.lat - st.lat, (x.lon - st.lon) * 0.82) })).sort((a, b) => a.d - b.d).slice(0, 8);
+---
+<Base title={`${st.name}, ${st.suburb} SA ${st.pc}: rent and renter reviews | RentalSpy`} description={`Renting on ${st.name}, ${st.suburb}? New leases in ${st.suburb} cost about ${lt ? money(lt[2]) : '—'} a week${lt ? ` (${qName(lt[0])})` : ''}. See renter ratings for ${st.count} addresses.`}>
+  <section class="band">
+    <div class="wrap">
+      <div class="crumbs"><a href="/">RentalSpy</a> › <a href={`/suburb/${s.slug}/`}>{s.name}</a> › {st.name}</div>
+      <h1>{st.name}, {st.suburb}</h1>
+      <p class="lede">{st.count} addresses. Rent below is for new leases across {st.suburb}; renters' own reports for this street are further down.</p>
+      <div class="grid2">
+        <RentTool suburb={s} compact />
+        <div>
+          <h2>Renter reports on this street</h2>
+          <div id="reports" data-suburb={st.sslug} data-street={st.slug}><p class="note">Loading…</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="band alt">
+    <div class="wrap">
+      <h2>Pick an address</h2>
+      <p class="note">Highlighted addresses have renter reports.</p>
+      <ul class="addr" id="addr">
+        {Object.entries(groups).map(([n, list]) => list.length === 1
+          ? <li><a id={`a-${list[0].id}`} data-n={n} data-u={list[0].u} href={`/place/?id=${list[0].id}&st=${st.sslug}/${st.slug}`}>{label(list[0])}</a></li>
+          : <li style="flex-basis:100%"><details><summary style="cursor:pointer;font-weight:700;padding:6px 0">{n} {st.name} <span class="note">({list.length} units)</span></summary>
+              <ul class="addr" style="margin-top:8px">{list.map((a) => <li><a id={`a-${a.id}`} data-n={n} data-u={a.u} href={`/place/?id=${a.id}&st=${st.sslug}/${st.slug}`}>{label(a)}</a></li>)}</ul></details></li>)}
+      </ul>
+    </div>
+  </section>
+  <section class="band">
+    <div class="wrap">
+      <h2>Nearby streets</h2>
+      <p style="max-width:none">{nearby.map((x, i) => <>{i ? ' · ' : ''}<a href={`/street/${x.sslug}/${x.slug}/`}>{x.name}</a></>)}</p>
+      <p><a href={`/suburb/${s.slug}/`}>All of {s.name}: safety, trends and every street →</a></p>
+    </div>
+  </section>
+</Base>
+<script>
+  import { fillReports } from '../../../lib/reports';
+  const box = document.getElementById('reports')!;
+  const sub = box.dataset.suburb!, street = box.dataset.street!;
+  fillReports(box, { suburb: sub, street, addHref: `/add/?st=${sub}/${street}`, showAddress: true }).then((stats) => {
+    for (const s of stats || []) document.getElementById('a-' + s.address_id)?.classList.add('has');
+  });
+  // highlight the number typed in search (?n=12&u=3)
+  const p = new URLSearchParams(location.search);
+  const n = p.get('n'), u = p.get('u') || '';
+  if (n) {
+    const a = [...document.querySelectorAll<HTMLAnchorElement>('#addr a')].find((x) => x.dataset.n?.toLowerCase() === n.toLowerCase() && (!u || x.dataset.u?.toLowerCase() === u.toLowerCase()));
+    if (a) { a.closest('details')?.setAttribute('open', ''); a.classList.add('hl'); a.scrollIntoView({ block: 'center' }); a.focus(); }
+  }
+</script>

@@ -1,0 +1,16 @@
+---
+import Base from '../layouts/Base.astro';
+import Prose from '../components/Prose.astro';
+import { CONTACT } from '../lib/contact';
+---
+<Base title="Report a problem | RentalSpy" description="Report an entry that's untrue, names someone, or breaks the rules.">
+  <Prose title="Report a problem">
+    <p class="lede">If an entry is untrue, names someone, or breaks the <a href="/rules/">rules</a>, tell us and we'll look at it quickly.</p>
+    <h2>The fastest way</h2>
+    <p>Press <b>Report</b> on the entry. If 3 different people report the same entry, it's hidden straight away until we've reviewed it.</p>
+    <h2>Landlords, agents and formal complaints</h2>
+    <p>Email us with the address, which entry you mean, and what's wrong with it. We'll usually hide the entry while we review it, and reply within 48 hours.</p>
+    <p>{CONTACT ? <a class="btn" href={`mailto:${CONTACT}?subject=RentalSpy%20complaint`}>Email {CONTACT}</a> : <span class="warn">Contact email not set yet.</span>}</p>
+    <p class="note">This is also the address for legal notices, including concerns notices under the Defamation Act 2005 (SA).</p>
+  </Prose>
+</Base>

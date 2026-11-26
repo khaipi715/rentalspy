@@ -1,0 +1,31 @@
+---
+import Base from '../layouts/Base.astro';
+import Prose from '../components/Prose.astro';
+import meta from '../data/meta.json';
+import { qName } from '../lib/format';
+---
+<Base title="About RentalSpy" description="RentalSpy is a free, renter-run map of what people really pay for rent and what places are like to live in.">
+  <Prose title="About RentalSpy">
+    <p class="lede">Know what you'll really pay before you sign.</p>
+    <p>RentalSpy started from a simple problem: finding a good rental is a gamble. Ads show the asking price and nice photos. They don't tell you whether the heater works, whether the landlord fixes things, or whether anyone in the share house cleans.</p>
+    <p>RentalSpy is free for renters and not run for profit. It starts with Mawson Lakes and 11 nearby suburbs in Adelaide's north.</p>
+    <h2>Where the numbers come from</h2>
+    <ul>
+      <li><b>Expected rent</b>: the SA Government's Private Rental Report, based on every rental bond lodged with Consumer and Business Services. It shows the median weekly rent of new leases each quarter. Latest: {qName(meta.latestQuarter)}.</li>
+      <li><b>Safety</b>: SA Police reported crime statistics by suburb, financial years {meta.crimeYears.join(' and ')}.</li>
+      <li><b>Addresses</b>: G-NAF, the official national address file ({meta.gnafRelease}).</li>
+      <li><b>Maps</b>: OpenStreetMap contributors, map tiles by OpenFreeMap.</li>
+      <li><b>Renter reports</b>: renters like you. Each person can report each address once.</li>
+    </ul>
+    <p class="note">Data last updated {meta.built}.</p>
+    <h2>Why you have to share to see</h2>
+    <p>Rent and reviews only exist if renters share them. So anyone can see the government numbers and average ratings, and people who add their own rent can see every renter's details. It keeps the map growing and fair.</p>
+    <h2>What we will never do</h2>
+    <ul>
+      <li>Let landlords or agents pay to change or remove ratings.</li>
+      <li>Show names of tenants, landlords, agents or housemates.</li>
+      <li>Sell your data.</li>
+    </ul>
+    <p><a class="btn" href="/add/">Add your rent</a></p>
+  </Prose>
+</Base>

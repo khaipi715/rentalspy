@@ -1,0 +1,100 @@
+---
+import Base from '../layouts/Base.astro';
+import SearchBox from '../components/SearchBox.astro';
+import SuburbMap from '../components/SuburbMap.astro';
+import suburbs from '../data/suburbs.json';
+import meta from '../data/meta.json';
+import { fresh, money, qName, cnt } from '../lib/format';
+const focus = suburbs.find((s: any) => s.name === meta.focus)!;
+const ft = fresh(focus.rent['all|Total'] as any)!;
+const totalAddresses = suburbs.reduce((a: number, s: any) => a + s.addresses, 0);
+const cards = [...suburbs].map((s: any) => ({ ...s, lt: fresh(s.rent['all|Total']) }))
+  .sort((a: any, b: any) => (a.name === meta.focus ? -1 : b.name === meta.focus ? 1 : a.name.localeCompare(b.name)));
+---
+<Base title="RentalSpy: what renters really pay in Mawson Lakes and nearby" description={`Know what you'll really pay before you sign. Rents for ${totalAddresses.toLocaleString('en-AU')} addresses in Mawson Lakes and nearby suburbs, plus what renters say. Free.`}>
+  <section class="band hero">
+    <div class="wrap hero-grid">
+      <div>
+        <h1>Know what you'll really pay before you sign.</h1>
+        <p class="lede">Real rents and renter ratings for every address in Mawson Lakes and 11 nearby suburbs. Free, and run for renters, not landlords.</p>
+        <SearchBox big />
+        <p class="proof" id="proof"></p>
+      </div>
+      <a class="panel headline" href={`/suburb/${focus.slug}/`}>
+        <div class="lbl">Mawson Lakes, new leases {qName(ft[0] as string)}</div>
+        <div class="big">{money(ft[2] as number)}<small> /week</small></div>
+        <div class="facts">
+          <div><span>Adelaide metro</span><b>{money(ft[3] as number)}</b></div>
+          <div><span>New leases that quarter</span><b>{cnt(ft[1] as any)}</b></div>
+          <div><span>Home break-ins {focus.crime.year}</span><b>{focus.crime.breakins} (was {focus.crime.breakinsPrev})</b></div>
+        </div>
+        <span class="more">See units, houses and rooms →</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="band alt">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <div class="cards steps">
+        <div class="card"><h3>1. Search the address</h3><p>Every street and house number from the official national address file.</p></div>
+        <div class="card"><h3>2. See the expected rent</h3><p>What new leases cost for that suburb, unit or house, by bedrooms, from government bond data. Plus safety and how far to the train and uni.</p></div>
+        <div class="card"><h3>3. Add yours, unlock everyone's</h3><p>Share the rent you pay in about 30 seconds, no email needed, and you can see what every renter pays and says.</p></div>
+      </div>
+      <p style="margin-top:20px"><a class="btn" href="/add/">Add your rent in 30 seconds</a></p>
+    </div>
+  </section>
+
+  <section class="band" id="suburbs">
+    <div class="wrap">
+      <h2>Rent around Mawson Lakes</h2>
+      <p class="lede">Median weekly rent for new leases, {qName(meta.latestQuarter)}. Tap a suburb.</p>
+      <SuburbMap suburbs={suburbs} landmarks={meta.landmarks as any} focus={meta.focus} />
+      <div class="cards" style="margin-top:24px">
+        {cards.map((s: any) => (
+          <a class="card" href={`/suburb/${s.slug}/`}>
+            <h3>{s.name}</h3>
+            <div style="font-size:28px;font-weight:800;color:var(--line)">{s.lt ? money(s.lt[2]) : '—'}<span class="note"> /week</span></div>
+            <div class="note">{s.addresses.toLocaleString('en-AU')} addresses · {s.crime.breakins} home break-ins last year</div>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="band alt">
+    <div class="wrap grid2">
+      <div>
+        <h2>Why RentalSpy exists</h2>
+        <p>Finding a good rental is a gamble. Listings show the advertised price and the nice photos. They don't tell you about the mould, the landlord who never fixes anything, or the share house where nobody cleans.</p>
+        <p>RentalSpy is free and run for renters. The more renters share, the less of a gamble it is for the next person.</p>
+      </div>
+      <div>
+        <h3>The rules</h3>
+        <ul>
+          <li>Ratings are about places, never people. No names.</li>
+          <li>Landlords can't pay to change or remove ratings.</li>
+          <li>Anything reported by 3 people is hidden until we check it.</li>
+          <li>You can delete your entries and your account any time.</li>
+        </ul>
+        <p><a href="/rules/">Read the full rules</a></p>
+      </div>
+    </div>
+  </section>
+</Base>
+<style>
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(20px, 4vw, 48px); align-items: center; }
+  .headline { color: inherit; text-decoration: none; display: block; border-width: 2px; }
+  .headline:hover { border-color: var(--line); }
+  .headline .more { display: inline-block; margin-top: 12px; font-weight: 700; color: var(--line); }
+  .proof { margin-top: 14px; font-weight: 600; min-height: 1.5em; }
+  @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
+</style>
+<script>
+  import { sb } from '../lib/supabase';
+  if (sb) sb.rpc('site_stats').then(({ data }) => {
+    const n = (data as any)?.entries;
+    const el = document.getElementById('proof')!;
+    el.textContent = n ? `${n.toLocaleString('en-AU')} rent${n > 1 ? 's' : ''} shared by renters so far.` : 'Be one of the first renters to share. It helps the next person.';
+  });
+</script>

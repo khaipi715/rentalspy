@@ -1,0 +1,46 @@
+---
+// Live map (MapLibre + free OpenFreeMap tiles) with suburbs coloured by median rent.
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { fresh, RENT_SCALE } from '../lib/format';
+interface Props { suburbs: any[]; landmarks: Record<string, [string, number, number]>; focus?: string; height?: number }
+const { suburbs, landmarks, focus, height = 480 } = Astro.props;
+const features = suburbs.filter((s) => s.poly).map((s) => {
+  const lt = fresh(s.rent['all|Total']);
+  return { type: 'Feature', properties: { name: s.name, slug: s.slug, rent: lt ? Math.round(+lt[2]!) : null, focus: s.name === focus }, geometry: { type: 'Polygon', coordinates: [s.poly] } };
+});
+const pts = Object.entries(landmarks).filter(([k]) => k !== 'cbd').map(([k, v]) => ({ type: 'Feature', properties: { k, label: v[0] }, geometry: { type: 'Point', coordinates: [v[2], v[1]] } }));
+---
+<div class="suburb-map" data-geo={JSON.stringify({ type: 'FeatureCollection', features })} data-pts={JSON.stringify({ type: 'FeatureCollection', features: pts })}>
+  <div class="map" style={`min-height:${height}px`} role="region" aria-label="Map of suburbs coloured by median rent"></div>
+  <div class="legend">
+    {RENT_SCALE.map((s) => <span><i style={`background:${s[2]}`}></i>{s[3]}</span>)}
+    <span><i style="background:var(--soft);border:1px solid var(--rule)"></i>No data</span>
+    <span>Tap a suburb to open it.</span>
+  </div>
+</div>
+<script>
+  import maplibregl from '../lib/maplibre';
+  const COL = ['#dcebf5', '#a9cde6', '#6aa8d2', '#2f7bb3', '#174f7a'];
+  for (const root of document.querySelectorAll<HTMLElement>('.suburb-map')) {
+    const geo = JSON.parse(root.dataset.geo!), pts = JSON.parse(root.dataset.pts!);
+    const el = root.querySelector<HTMLElement>('.map')!;
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const map = new maplibregl.Map({ container: el, style: `https://tiles.openfreemap.org/styles/${dark ? 'dark' : 'positron'}`, center: [138.615, -34.81], zoom: 11.6, attributionControl: { compact: true }, cooperativeGestures: true });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    map.on('load', () => {
+      map.addSource('sub', { type: 'geojson', data: geo });
+      map.addLayer({ id: 'sub-fill', type: 'fill', source: 'sub', paint: { 'fill-opacity': 0.62, 'fill-color': ['case', ['==', ['get', 'rent'], null], '#e9e6df', ['step', ['get', 'rent'], COL[0], 560, COL[1], 580, COL[2], 600, COL[3], 620, COL[4]]] } });
+      map.addLayer({ id: 'sub-line', type: 'line', source: 'sub', paint: { 'line-color': ['case', ['get', 'focus'], '#d94f2b', '#ffffff'], 'line-width': ['case', ['get', 'focus'], 4, 1.5] } });
+      map.addLayer({ id: 'sub-label', type: 'symbol', source: 'sub', layout: { 'text-field': ['case', ['==', ['get', 'rent'], null], ['get', 'name'], ['concat', ['get', 'name'], '\n$', ['to-string', ['get', 'rent']]]], 'text-size': 13, 'text-font': ['Noto Sans Bold'] }, paint: { 'text-color': '#17202a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } });
+      map.addSource('pts', { type: 'geojson', data: pts });
+      map.addLayer({ id: 'pts', type: 'circle', source: 'pts', paint: { 'circle-radius': 6, 'circle-color': '#17202a', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      map.addLayer({ id: 'pts-label', type: 'symbol', source: 'pts', minzoom: 12.5, layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-font': ['Noto Sans Regular'] }, paint: { 'text-color': '#17202a', 'text-halo-color': '#fff', 'text-halo-width': 1.5 } });
+      const b = new maplibregl.LngLatBounds();
+      geo.features.forEach((f: any) => f.geometry.coordinates[0].forEach((c: [number, number]) => b.extend(c)));
+      map.fitBounds(b, { padding: 20, animate: false });
+    });
+    map.on('click', 'sub-fill', (e) => { const f = e.features?.[0]; if (f) location.href = `/suburb/${f.properties!.slug}/`; });
+    map.on('mouseenter', 'sub-fill', () => (map.getCanvas().style.cursor = 'pointer'));
+    map.on('mouseleave', 'sub-fill', () => (map.getCanvas().style.cursor = ''));
+  }
+</script>

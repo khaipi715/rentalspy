@@ -1,0 +1,79 @@
+---
+import Base from '../layouts/Base.astro';
+// Saving an email needs a working email sender in Supabase (see SETUP.md, step 7). Until then the option is hidden.
+const emailOn = import.meta.env.PUBLIC_EMAIL_ENABLED === 'true';
+---
+<Base title="My places | RentalSpy" noindex>
+  <section class="band">
+    <div class="narrow">
+      <h1>My places</h1>
+      <div id="none" class="hide"><p>You haven't added anything from this browser yet.</p><a class="btn" href="/add/">Add your rent</a></div>
+      <div id="list" style="display:grid;gap:12px"></div>
+
+      <div id="account" class="hide" style="margin-top:36px">
+        {emailOn ? (<div>
+        <h2>Keep access on other devices (optional)</h2>
+        <p>Right now your entries are linked to this browser only. Add an email to keep them if you clear your browser or change phones. We never show your email to anyone.</p>
+        <form id="emailForm" style="display:flex;gap:10px;flex-wrap:wrap"><input id="email" type="email" required placeholder="you@example.com" style="flex:1 1 240px" /><button class="btn" type="submit">Save email</button></form>
+        <p class="note" id="emailMsg"></p>
+        <p><a href="#" id="signin">Already added an email on another device? Sign in with a link</a></p>
+
+        </div>) : (<p class="note">Your entries are linked to this browser. Don't clear your browser data if you want to edit or delete them later.</p>)}
+        <h2 style="margin-top:36px">Delete everything</h2>
+        <p>This permanently deletes your account, all your entries and tips. It can't be undone.</p>
+        <button class="btn ghost" id="del" type="button">Delete my account and entries</button>
+        <p id="adminLink" class="hide" style="margin-top:28px"><a class="btn ghost" href="/admin/">Open moderation</a></p>
+      </div>
+      <div id="offline" class="hide warn">This copy of RentalSpy isn't connected to its database yet.</div>
+    </div>
+  </section>
+</Base>
+<script>
+  import { sb, getStatus, niceError } from '../lib/supabase';
+  import { entryHtml, toast, type Entry } from '../lib/reports';
+  const $ = (id: string) => document.getElementById(id)!;
+  async function load() {
+    if (!sb) return $('offline').classList.remove('hide');
+    const { data: s } = await sb.auth.getSession();
+    $('account').classList.remove('hide');
+    if (!s.session) return $('none').classList.remove('hide');
+    const me = s.session.user;
+    if (me.email && document.getElementById('email')) { ($('email') as HTMLInputElement).value = me.email; $('emailMsg').textContent = 'Email saved.'; }
+    const st = await getStatus();
+    if (st?.is_admin) $('adminLink').classList.remove('hide');
+    const { data, error } = await sb.from('entries').select('*, comments(body,status)').eq('user_id', me.id).order('created_at', { ascending: false });
+    if (error) return toast(niceError(error));
+    const list = data as Entry[];
+    if (!list.length) return $('none').classList.remove('hide');
+    $('list').innerHTML = list.map((e) => entryHtml(e, true, true).replace('</article>', `<div><button class="btn ghost small" data-del="${e.id}">Delete this entry</button></div></article>`)).join('');
+  }
+  $('list').addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-del]'); if (!b) return;
+    if (!confirm('Delete this entry?')) return;
+    const { error } = await sb!.from('entries').delete().eq('id', b.dataset.del!);
+    if (error) return toast(niceError(error));
+    b.closest('article')!.remove(); toast('Deleted.');
+  });
+  $('emailForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = ($('email') as HTMLInputElement).value.trim();
+    const { data: s } = await sb!.auth.getSession();
+    const { error } = s.session ? await sb!.auth.updateUser({ email }) : await sb!.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + '/me/' } });
+    $('emailMsg').textContent = error ? niceError(error) : 'Check your inbox and click the link to confirm.';
+  });
+  document.getElementById('signin')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = prompt('Your email');
+    if (!email) return;
+    const { error } = await sb!.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + '/me/', shouldCreateUser: false } });
+    toast(error ? niceError(error) : 'Check your inbox for a sign-in link.');
+  });
+  $('del').addEventListener('click', async () => {
+    if (!confirm('Delete your account and all your entries for good?')) return;
+    const { error } = await sb!.rpc('delete_my_account');
+    if (error) return toast(niceError(error));
+    await sb!.auth.signOut();
+    location.href = '/';
+  });
+  load();
+</script>

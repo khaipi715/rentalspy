@@ -1,0 +1,10 @@
+{
+  "name": "RentalSpy",
+  "short_name": "RentalSpy",
+  "description": "What renters really pay in Mawson Lakes and nearby.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfaf7",
+  "theme_color": "#d94f2b",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -1,0 +1,70 @@
+---
+import 'maplibre-gl/dist/maplibre-gl.css';
+import Base from '../layouts/Base.astro';
+import suburbs from '../data/suburbs.json';
+import { fresh } from '../lib/format';
+// small table of latest medians per suburb, so this one page works for every address
+const summary: Record<string, any> = {};
+for (const s of suburbs as any[]) {
+  const row: Record<string, any> = { name: s.name };
+  for (const k of ['unit|1 bedroom', 'unit|2 bedrooms', 'unit|3 bedrooms', 'house|2 bedrooms', 'house|3 bedrooms', 'house|4+ bedrooms', 'all|Total']) row[k] = fresh(s.rent[k]);
+  row.breakins = s.crime.breakins; row.year = s.crime.year;
+  summary[s.slug] = row;
+}
+---
+<Base title="Address | RentalSpy" description="Rent and renter ratings for this address." noindex>
+  <section class="band">
+    <div class="wrap" id="place" data-summary={JSON.stringify(summary)}>
+      <div class="crumbs" id="crumbs"><a href="/">RentalSpy</a></div>
+      <h1 id="title">Loading address…</h1>
+      <p class="lede" id="sub"></p>
+      <div class="grid2">
+        <div>
+          <div class="map" id="map" style="min-height:320px"></div>
+          <h2 style="margin-top:24px">What a new lease costs nearby</h2>
+          <div class="panel"><div class="facts" id="expect"></div><p class="note" style="margin-top:10px" id="expectNote"></p></div>
+        </div>
+        <div>
+          <h2>What renters say about this place</h2>
+          <div id="reports"><p class="note">Loading…</p></div>
+          <p style="margin-top:16px"><a class="btn" id="addBtn" href="/add/">I live or lived here: add my rent</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+<script>
+  import maplibregl from '../lib/maplibre';
+  import { fillReports } from '../lib/reports';
+  import { money, qName, esc } from '../lib/format';
+  const root = document.getElementById('place')!;
+  const summary = JSON.parse(root.dataset.summary!);
+  const p = new URLSearchParams(location.search);
+  const id = p.get('id') || '', st = p.get('st') || '';
+  const [sub, street] = st.split('/');
+  const fail = (m: string) => { document.getElementById('title')!.textContent = m; document.getElementById('reports')!.innerHTML = '<p><a href="/">Search for an address</a></p>'; };
+  (async () => {
+    if (!/^GA[A-Z]{2}_\d+$/.test(id) || !/^[a-z0-9-]+$/.test(sub || '') || !/^[a-z0-9-]+$/.test(street || '')) return fail('Address not found');
+    const res = await fetch(`/data/streets/${sub}/${street}.json`);
+    if (!res.ok) return fail('Address not found');
+    const sd = await res.json();
+    const a = sd.addresses.find((x: any) => x.id === id);
+    if (!a) return fail('Address not found');
+    const label = `${a.u ? a.u + '/' : ''}${a.n} ${sd.name}`;
+    document.title = `${label}, ${sd.suburb} | RentalSpy`;
+    document.getElementById('title')!.textContent = label;
+    document.getElementById('sub')!.textContent = `${sd.suburb} SA ${a.pc}`;
+    document.getElementById('crumbs')!.innerHTML = `<a href="/">RentalSpy</a> › <a href="/suburb/${esc(sub)}/">${esc(sd.suburb)}</a> › <a href="/street/${esc(sub)}/${esc(street)}/">${esc(sd.name)}</a> › ${esc(a.u ? a.u + '/' : '')}${esc(a.n)}`;
+    const addHref = `/add/?id=${encodeURIComponent(id)}&st=${encodeURIComponent(st)}`;
+    (document.getElementById('addBtn') as HTMLAnchorElement).href = addHref;
+    const s = summary[sub];
+    const rows: [string, any][] = [['Unit, 1 bedroom', s['unit|1 bedroom']], ['Unit, 2 bedrooms', s['unit|2 bedrooms']], ['Unit, 3 bedrooms', s['unit|3 bedrooms']], ['House, 2 bedrooms', s['house|2 bedrooms']], ['House, 3 bedrooms', s['house|3 bedrooms']], ['House, 4+ bedrooms', s['house|4+ bedrooms']]];
+    document.getElementById('expect')!.innerHTML = rows.filter((r) => r[1]).map((r) => `<div><span>${esc(r[0])}</span><b>${money(r[1][2])} /week${r[1][1] === '*' || (typeof r[1][1] === 'number' && r[1][1] < 10) ? ' <span class="note">(rough)</span>' : ''}</b></div>`).join('') + `<div><span>Home break-ins in ${esc(s.name)}, ${esc(s.year)}</span><b>${s.breakins}</b></div>`;
+    const lt = s['all|Total'];
+    document.getElementById('expectNote')!.innerHTML = `Median rent of new leases across ${esc(s.name)}${lt ? ', latest ' + esc(qName(lt[0])) : ''}, SA Government bond data. <a href="/suburb/${esc(sub)}/">More for ${esc(s.name)}</a>`;
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const map = new maplibregl.Map({ container: 'map', style: `https://tiles.openfreemap.org/styles/${dark ? 'dark' : 'positron'}`, center: [a.lon, a.lat], zoom: 16, attributionControl: { compact: true }, cooperativeGestures: true });
+    new maplibregl.Marker({ color: '#d94f2b' }).setLngLat([a.lon, a.lat]).addTo(map);
+    await fillReports(document.getElementById('reports')!, { suburb: sub, street, address: id, addHref });
+  })();
+</script>

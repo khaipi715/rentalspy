@@ -1,0 +1,57 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Moderation | RentalSpy" noindex>
+  <section class="band">
+    <div class="wrap">
+      <h1>Moderation</h1>
+      <p class="lede">Approve tips, and decide on reported entries. Takes a few minutes a week.</p>
+      <div id="login" class="hide panel">
+        <p>Sign in with your admin email.</p>
+        <form id="lf" style="display:flex;gap:10px;flex-wrap:wrap"><input id="em" type="email" required placeholder="admin email" style="flex:1 1 240px" /><button class="btn">Send sign-in link</button></form>
+        <p class="note" id="lm"></p>
+      </div>
+      <div id="denied" class="hide warn">This account isn't an admin.</div>
+      <div id="q" class="hide">
+        <p id="totals" class="note"></p>
+        <h2>Tips waiting for approval</h2>
+        <p class="note">Approve if it's about the place and contains no names, accusations of crimes or personal details. If in doubt, reject.</p>
+        <div id="comments" style="display:grid;gap:10px"></div>
+        <h2 style="margin-top:32px">Reported entries</h2>
+        <p class="note">Entries reported by 3 people are already hidden. Keep = show it again and close the reports. Remove = delete it for good.</p>
+        <div id="reported" style="display:grid;gap:10px"></div>
+      </div>
+    </div>
+  </section>
+</Base>
+<script>
+  import { sb, getStatus, niceError } from '../lib/supabase';
+  import { esc, money } from '../lib/format';
+  import { toast } from '../lib/reports';
+  const $ = (id: string) => document.getElementById(id)!;
+  async function load() {
+    if (!sb) return;
+    const st = await getStatus();
+    if (!st?.signed_in) return $('login').classList.remove('hide');
+    if (!st.is_admin) return $('denied').classList.remove('hide');
+    const { data, error } = await sb.rpc('admin_queue');
+    if (error) return toast(niceError(error));
+    const d = data as any;
+    $('q').classList.remove('hide');
+    $('totals').textContent = `${d.totals.entries} entries from ${d.totals.people} people, ${d.totals.hidden} hidden.`;
+    $('comments').innerHTML = d.comments.length ? d.comments.map((c: any) => `<div class="entry"><div class="note">${esc(c.address_label)} · ${esc(new Date(c.created_at).toLocaleDateString('en-AU'))}</div><p style="margin:0">“${esc(c.body)}”</p><div class="row"><button class="btn small" data-c="${esc(c.entry_id)}" data-s="approved">Approve</button><button class="btn ghost small" data-c="${esc(c.entry_id)}" data-s="rejected">Reject</button></div></div>`).join('') : '<p>Nothing waiting.</p>';
+    $('reported').innerHTML = d.reported.length ? d.reported.map((r: any) => `<div class="entry"><div><b>${esc(r.address_label)}</b> · ${money(r.rent_week)}/week · ${esc(r.dwelling)} ${r.hidden ? '<span class="pill bad">Hidden</span>' : ''} <span class="pill">${r.report_count} report(s)</span></div>${r.comment ? `<p style="margin:0">“${esc(r.comment)}”</p>` : ''}<div class="note">Reasons: ${(r.reasons || []).map(esc).join(' · ')}</div><div class="row"><button class="btn small" data-r="${esc(r.id)}" data-a="keep">Keep</button><button class="btn ghost small" data-r="${esc(r.id)}" data-a="remove">Remove</button></div></div>`).join('') : '<p>No open reports.</p>';
+  }
+  document.addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-c],[data-r]'); if (!b) return;
+    const res = b.dataset.c ? await sb!.rpc('admin_review_comment', { p_entry: b.dataset.c, p_status: b.dataset.s }) : await sb!.rpc('admin_resolve', { p_entry: b.dataset.r, p_action: b.dataset.a });
+    if (res.error) return toast(niceError(res.error));
+    b.closest('.entry')!.remove(); toast('Done.');
+  });
+  $('lf').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const { error } = await sb!.auth.signInWithOtp({ email: ($('em') as HTMLInputElement).value.trim(), options: { emailRedirectTo: location.origin + '/admin/', shouldCreateUser: false } });
+    $('lm').textContent = error ? niceError(error) : 'Check your inbox for the sign-in link.';
+  });
+  load();
+</script>

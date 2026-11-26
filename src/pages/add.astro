@@ -1,0 +1,196 @@
+---
+import Base from '../layouts/Base.astro';
+import SearchBox from '../components/SearchBox.astro';
+const year = new Date().getFullYear();
+const years = Array.from({ length: 17 }, (_, i) => year - i);
+---
+<Base title="Add your rent | RentalSpy" description="Share what you pay. Takes about 30 seconds, no email needed, and unlocks every rent and review on RentalSpy." noindex>
+  <section class="band">
+    <div class="narrow">
+      <h1>Add your rent</h1>
+      <p class="lede">About 30 seconds. No email, no names. Then you can see what every renter pays and says.</p>
+
+      <div id="step-address">
+        <h2>Which address?</h2>
+        <div id="addr-search"><SearchBox big mode="add" placeholder="Your street, e.g. 12 Adeline Street" /></div>
+        <div id="addr-pick" class="hide">
+          <p><b id="pick-street"></b> <a href="/add/" class="note">change</a></p>
+          <label class="field">Number<select id="pick-num"></select></label>
+        </div>
+        <div id="addr-chosen" class="hide panel"><span class="lbl">Address</span><div id="chosen-label" style="font-size:20px;font-weight:800"></div><a href="/add/" class="note">Change address</a></div>
+      </div>
+
+      <form id="form" class="hide" novalidate>
+        <h2 style="margin-top:28px">The place</h2>
+        <div class="lbl">What is it?</div>
+        <div class="seg" id="dwelling">
+          <button type="button" data-v="house" aria-pressed="false">House or townhouse</button>
+          <button type="button" data-v="unit" aria-pressed="false">Unit or apartment</button>
+          <button type="button" data-v="room" aria-pressed="false">A room in a share house</button>
+        </div>
+        <label class="field" id="bed-field">Bedrooms
+          <select id="bedrooms"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5+</option></select></label>
+        <label class="check" id="share-field"><input type="checkbox" id="share" /> <span>It's a share house (you live with people who aren't your partner or family)</span></label>
+        <label class="field"><span id="rent-label">Rent per week for the whole place</span>
+          <input id="rent" type="number" inputmode="numeric" min="50" max="3000" step="1" placeholder="e.g. 540" required />
+          <span class="hint" id="rent-hint">Weekly. If you pay monthly, multiply by 12 and divide by 52.</span></label>
+        <div class="grid2" style="gap:12px">
+          <label class="field">Lease started<select id="year">{years.map((y) => <option value={y}>{y}</option>)}</select></label>
+          <label class="field">Do you still live there?<select id="still"><option value="1">Yes</option><option value="0">No, I moved out</option></select></label>
+        </div>
+
+        <h2 style="margin-top:12px">How was it?</h2>
+        <div class="rating" data-k="rating_condition"><div class="lbl">Condition of the place</div><div class="stars"></div></div>
+        <div class="rating" data-k="rating_landlord"><div class="lbl">Landlord or agent (fixes things, responds, fair)</div><div class="stars"></div></div>
+        <div class="rating" data-k="rating_noise"><div class="lbl">How quiet is it? (5 = very quiet)</div><div class="stars"></div></div>
+        <div class="rating" data-k="rating_clean" id="clean-field"><div class="lbl">Share house: how clean do people keep it?</div><div class="stars"></div></div>
+
+        <label class="check"><input type="checkbox" id="mould" /> <span>There was mould or damp</span></label>
+        <label class="check"><input type="checkbox" id="heat" checked /> <span>Heating and cooling worked well</span></label>
+        <label class="field">Repairs were done quickly<select id="repairs"><option value="">Not sure / never needed</option><option value="1">Yes</option><option value="0">No</option></select></label>
+        <label class="field">Bond returned in full<select id="bond"><option value="">Still living there / not sure</option><option value="1">Yes</option><option value="0">No</option></select></label>
+        <label class="field">Pets allowed<select id="pets"><option value="">Don't know</option><option value="1">Yes</option><option value="0">No</option></select></label>
+
+        <label class="field">One tip for the next renter (optional)
+          <textarea id="comment" maxlength="200" placeholder="e.g. Heater is old, bills are high in winter. Bus stop is right outside."></textarea>
+          <span class="hint"><span id="count">0</span>/200. No names, phone numbers, emails or links. Tips are checked before they appear.</span></label>
+
+        <label class="check"><input type="checkbox" id="adult" /> <span>I'm 18 or older, this is my real experience, and I agree to the <a href="/rules/" target="_blank">rules</a> and <a href="/terms/" target="_blank">terms</a>.</span></label>
+        <p class="warn hide" id="err" role="alert"></p>
+        <button class="btn" type="submit" id="submit" style="width:100%;margin-top:8px">Share and unlock</button>
+        <p class="note" style="margin-top:8px">No email needed. We save a private key in this browser so you can edit or delete your entry later on My places.</p>
+      </form>
+
+      <div id="done" class="hide">
+        <div class="lock" style="border-style:solid">
+          <h2>Thank you. Everything is unlocked.</h2>
+          <p>You can now see what every renter pays and says, across all suburbs.</p>
+          <p style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn" id="seePlace" href="/">See this place</a><a class="btn ghost" id="seeSuburb" href="/">See the whole suburb</a><a class="btn ghost" href="/add/">Add another place</a></p>
+        </div>
+        <p style="margin-top:18px">Know someone renting nearby? Every rent shared makes this more useful. <button class="btn ghost small" id="share-btn" type="button">Copy a link to share</button></p>
+      </div>
+      <div id="offline" class="hide warn">This copy of RentalSpy isn't connected to its database yet, so entries can't be saved.</div>
+    </div>
+  </section>
+</Base>
+<script>
+  import { sb, ensureSession, niceError } from '../lib/supabase';
+  import { esc } from '../lib/format';
+  import { toast as toastSafe } from '../lib/reports';
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+  const p = new URLSearchParams(location.search);
+  let id = p.get('id') || '';
+  const st = p.get('st') || '';
+  const [sub, street] = st.split('/');
+  let addr: { id: string; label: string } | null = null;
+  let sd: any = null;
+
+  async function loadStreet() {
+    if (!/^[a-z0-9-]+$/.test(sub || '') || !/^[a-z0-9-]+$/.test(street || '')) return false;
+    const r = await fetch(`/data/streets/${sub}/${street}.json`);
+    if (!r.ok) return false;
+    sd = await r.json();
+    return true;
+  }
+  const lab = (a: any) => `${a.u ? a.u + '/' : ''}${a.n} ${sd.name}, ${sd.suburb}`;
+  function choose(a: any) {
+    addr = { id: a.id, label: lab(a) };
+    $('addr-search').classList.add('hide'); $('addr-pick').classList.add('hide');
+    $('addr-chosen').classList.remove('hide'); $('chosen-label').textContent = addr.label;
+    $('form').classList.remove('hide');
+  }
+  (async () => {
+    if (!st) return;
+    if (!(await loadStreet())) return;
+    if (id) { const a = sd.addresses.find((x: any) => x.id === id); if (a) return choose(a); }
+    $('addr-search').classList.add('hide'); $('addr-pick').classList.remove('hide');
+    $('pick-street').textContent = `${sd.name}, ${sd.suburb}`;
+    const sel = $<HTMLSelectElement>('pick-num');
+    sel.innerHTML = '<option value="">Choose your number</option>' + sd.addresses.map((a: any) => `<option value="${esc(a.id)}">${esc((a.u ? a.u + '/' : '') + a.n)}</option>`).join('');
+    const n = (p.get('n') || '').toLowerCase(), u = (p.get('u') || '').toLowerCase();
+    const pre = sd.addresses.find((a: any) => a.n.toLowerCase() === n && (!u || a.u.toLowerCase() === u));
+    if (pre && (u || sd.addresses.filter((a: any) => a.n.toLowerCase() === n).length === 1)) return choose(pre);
+    if (pre) sel.value = pre.id;
+    sel.addEventListener('change', () => { const a = sd.addresses.find((x: any) => x.id === sel.value); if (a) choose(a); });
+  })();
+
+  // form behaviour
+  let dwelling = '';
+  const ratings: Record<string, number> = {};
+  $('dwelling').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button'); if (!b) return;
+    dwelling = b.dataset.v!;
+    $('dwelling').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    sync();
+  });
+  for (const r of document.querySelectorAll<HTMLElement>('.rating')) {
+    const box = r.querySelector('.stars')!;
+    box.innerHTML = [1, 2, 3, 4, 5].map((n) => `<button type="button" data-n="${n}" aria-pressed="false" aria-label="${n} out of 5">${n}</button>`).join('');
+    box.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest('button'); if (!b) return;
+      ratings[r.dataset.k!] = +b.dataset.n!;
+      box.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(+x.dataset.n! <= +b.dataset.n!)));
+    });
+  }
+  const shareBox = $<HTMLInputElement>('share');
+  function sync() {
+    const room = dwelling === 'room';
+    $('bed-field').classList.toggle('hide', room);
+    $('share-field').classList.toggle('hide', room);
+    $('clean-field').classList.toggle('hide', !(room || shareBox.checked));
+    $('rent-label').textContent = room ? 'Your rent per week (just your room)' : shareBox.checked ? 'Rent per week for the whole place (all housemates together)' : 'Rent per week for the whole place';
+  }
+  shareBox.addEventListener('change', sync); sync();
+  $('comment').addEventListener('input', () => ($('count').textContent = String(($('comment') as HTMLTextAreaElement).value.length)));
+
+  const clearErr = () => $('err').classList.add('hide');
+  $('form').addEventListener('input', clearErr);
+  $('form').addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('button[type=button]')) clearErr(); });
+  if (!sb) { $('offline').classList.remove('hide'); $<HTMLButtonElement>('submit').disabled = true; }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('err');
+    const show = (m: string) => { err.textContent = m; err.classList.remove('hide'); err.scrollIntoView({ block: 'center' }); };
+    err.classList.add('hide');
+    const rent = Math.round(Number(($('rent') as HTMLInputElement).value));
+    const share = dwelling === 'room' || shareBox.checked;
+    if (!addr) return show('Choose an address first.');
+    if (!dwelling) return show('Choose what kind of place it is.');
+    if (!(rent >= 50 && rent <= 3000)) return show('Enter the weekly rent in dollars, between 50 and 3000.');
+    for (const k of ['rating_condition', 'rating_landlord', 'rating_noise']) if (!ratings[k]) return show('Please give all three ratings.');
+    if (share && !ratings.rating_clean) return show('Please rate how clean the share house is.');
+    if (!($('adult') as HTMLInputElement).checked) return show('Please confirm you are 18 or older and agree to the rules.');
+    const tri = (idd: string) => { const v = ($(idd) as HTMLSelectElement).value; return v === '' ? null : v === '1'; };
+    const btn = $<HTMLButtonElement>('submit'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await ensureSession();
+      const c = await sb!.rpc('confirm_adult'); if (c.error) throw c.error;
+      const row = {
+        address_id: addr.id, address_label: addr.label, street_slug: street, suburb_slug: sub, dwelling,
+        bedrooms: dwelling === 'room' ? null : Number(($('bedrooms') as HTMLSelectElement).value), share_house: share,
+        rent_week: rent, lease_year: Number(($('year') as HTMLSelectElement).value), still_living: ($('still') as HTMLSelectElement).value === '1',
+        rating_condition: ratings.rating_condition, rating_landlord: ratings.rating_landlord, rating_noise: ratings.rating_noise,
+        rating_clean: share ? ratings.rating_clean : null, mould: ($('mould') as HTMLInputElement).checked, heating_cooling_ok: ($('heat') as HTMLInputElement).checked,
+        repairs_quick: tri('repairs'), bond_returned: tri('bond'), pets_allowed: tri('pets'),
+      };
+      const ins = await sb!.from('entries').insert(row).select('id').single();
+      if (ins.error) throw ins.error;
+      const text = ($('comment') as HTMLTextAreaElement).value.trim();
+      if (text.length >= 3) {
+        const cm = await sb!.from('comments').insert({ entry_id: ins.data.id, body: text });
+        if (cm.error) toastSafe('Your rent was saved, but the tip was not: ' + niceError(cm.error));
+      }
+      ($('seePlace') as HTMLAnchorElement).href = `/place/?id=${encodeURIComponent(addr.id)}&st=${encodeURIComponent(st)}`;
+      ($('seeSuburb') as HTMLAnchorElement).href = `/suburb/${sub}/`;
+      $('form').classList.add('hide'); $('step-address').classList.add('hide'); $('done').classList.remove('hide');
+      document.getElementById('nav-me')?.classList.remove('hide');
+      scrollTo(0, 0);
+    } catch (ex) {
+      show(niceError(ex));
+    } finally { btn.disabled = false; btn.textContent = 'Share and unlock'; }
+  });
+  $('share-btn').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(location.origin + '/'); toastSafe('Link copied. Thanks for spreading the word!'); } catch { toastSafe(location.origin + '/'); }
+  });
+</script>

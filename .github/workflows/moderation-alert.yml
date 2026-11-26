@@ -1,0 +1,25 @@
+# Once a day: if a tip is waiting for approval or an entry has been reported, this check "fails" on purpose.
+# GitHub then emails you (failed scheduled workflows are emailed by default), so you only open /admin/ when needed.
+# Needs repository secrets SUPABASE_URL and SUPABASE_ANON_KEY.
+name: Moderation alert
+on:
+  schedule:
+    - cron: '41 22 * * *'   # about 8-9am Adelaide time
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Anything to moderate?
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          R=$(curl -fsS -X POST "$URL/rest/v1/rpc/moderation_pending" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' -d '{}')
+          echo "$R"
+          TIPS=$(echo "$R" | python3 -c 'import json,sys;print(json.load(sys.stdin)["tips"])')
+          REP=$(echo "$R" | python3 -c 'import json,sys;print(json.load(sys.stdin)["reported"])')
+          if [ "$TIPS" != "0" ] || [ "$REP" != "0" ]; then
+            echo "::error::RentalSpy needs you: $TIPS tip(s) to approve, $REP reported entr(ies). Open your-site/admin/"
+            exit 1
+          fi
